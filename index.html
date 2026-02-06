@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Web3 Gas Calculator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        input { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        button { padding: 10px 20px; margin: 5px 5px 5px 0; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;}
+        button:hover { background: #0056b3; }
+        .log-box { background: #f4f4f4; padding: 10px; border: 1px solid #ddd; margin-top: 20px; min-height: 100px; white-space: pre-wrap; }
+        h3 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <h2>ERC-20 Взаимодействие & Расчет Газа</h2>
+    
+    <button id="connectBtn" style="background: orange;">🔌 Подключить MetaMask</button>
+    <p>Мой аккаунт: <span id="myAccount">Не подключено</span></p>
+
+    <hr>
+
+    <label>Адрес получателя / Спендера (Address):</label>
+    <input type="text" id="addressInput" placeholder="0x..." />
+
+    <label>Сумма (Amount):</label>
+    <input type="number" id="amountInput" placeholder="10" />
+
+    <hr>
+
+    <h3>Функции:</h3>
+    <div>
+        <button onclick="doApprove()">3) Approve</button>
+        <button onclick="doTransfer()">4) Transfer</button>
+    </div>
+    <div style="margin-top: 10px;">
+        <button onclick="doAllowance()">2) Allowance (View)</button>
+        <button onclick="doTransferFrom()">1) Transfer From</button>
+    </div>
+
+    <h3>Логи и Газ:</h3>
+    <div id="logs" class="log-box">Ожидание действий...</div>
+
+    <script>
+        let provider, signer, contract;
+        
+        // !!! ВСТАВЬТЕ СЮДА АДРЕС ВАШЕГО КОНТРАКТА ИЗ REMIX !!!
+        const CONTRACT_ADDRESS = "0x73511669fd4dE447feD18BB79bAFeAC93aB7F31f"; 
+
+        // Минимальный ABI для стандарта ERC-20
+        const ABI = [
+            "function transfer(address to, uint amount) returns (bool)",
+            "function approve(address spender, uint amount) returns (bool)",
+            "function transferFrom(address from, address to, uint amount) returns (bool)",
+            "function allowance(address owner, address spender) view returns (uint)"
+        ];
+
+        function log(msg) {
+            const logBox = document.getElementById("logs");
+            logBox.innerHTML = `> ${msg}\n` + logBox.innerHTML;
+        }
+
+        // Подключение к MetaMask
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            if (window.ethereum) {
+                try {
+                    provider = new ethers.BrowserProvider(window.ethereum);
+                    signer = await provider.getSigner();
+                    const address = await signer.getAddress();
+                    
+                    document.getElementById("myAccount").innerText = address;
+                    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+                    
+                    log("MetaMask подключен!");
+                } catch (error) {
+                    log("Ошибка подключения: " + error.message);
+                }
+            } else {
+                alert("Установите MetaMask!");
+            }
+        });
+
+        // Вспомогательная функция для получения значений
+        function getInputs() {
+            const addr = document.getElementById("addressInput").value;
+            const amt = document.getElementById("amountInput").value;
+            if (!ethers.isAddress(addr)) { alert("Неверный адрес!"); return null; }
+            // Конвертируем число в Wei (18 нулей)
+            const amtWei = ethers.parseUnits(amt || "0", 18); 
+            return { addr, amtWei };
+        }
+
+        // --- 4. TRANSFER ---
+        async function doTransfer() {
+            const data = getInputs();
+            if (!data) return;
+
+            try {
+                log("Отправка Transfer...");
+                const tx = await contract.transfer(data.addr, data.amtWei);
+                log(`Транзакция отправлена: ${tx.hash}`);
+                
+                const receipt = await tx.wait(); // Ждем подтверждения
+                log(`✅ Успех! Gas Used: ${receipt.gasUsed.toString()}`);
+            } catch (e) {
+                log("Ошибка Transfer: " + e.message);
+            }
+        }
+
+        // --- 3. APPROVE ---
+        async function doApprove() {
+            const data = getInputs();
+            if (!data) return;
+
+            try {
+                log("Отправка Approve...");
+                const tx = await contract.approve(data.addr, data.amtWei);
+                log(`Транзакция отправлена: ${tx.hash}`);
+
+                const receipt = await tx.wait();
+                log(`✅ Успех! Gas Used: ${receipt.gasUsed.toString()}`);
+            } catch (e) {
+                log("Ошибка Approve: " + e.message);
+            }
+        }
+
+        // --- 2. ALLOWANCE (Это view функция, газа не тратит, но покажем результат) ---
+        async function doAllowance() {
+            const spender = document.getElementById("addressInput").value;
+            if (!ethers.isAddress(spender)) return alert("Введите адрес Spender");
+
+            try {
+                const owner = await signer.getAddress();
+                const result = await contract.allowance(owner, spender);
+                const formatted = ethers.formatUnits(result, 18);
+                log(`ℹ️ Allowance: ${formatted} токенов (View функция - 0 газа)`);
+            } catch (e) {
+                log("Ошибка Allowance: " + e.message);
+            }
+        }
+
+        // --- 1. TRANSFER FROM ---
+        async function doTransferFrom() {
+            // Для теста transferFrom обычно нужно 3 аргумента: from, to, amount.
+            // В простой форме мы возьмем "from" как нас, а "to" как введенный адрес.
+            // Примечание: Чтобы это сработало, вы должны были сделать Approve самому себе или другому контракту.
+            
+            const data = getInputs();
+            if (!data) return;
+
+            try {
+                const owner = await signer.getAddress(); // От кого списываем (от себя)
+                log("Отправка TransferFrom...");
+                
+                // В реальном сценарии transferFrom вызывает третья сторона. 
+                // Если мы вызываем его сами на себя, это сработает, если есть allowance.
+                const tx = await contract.transferFrom(owner, data.addr, data.amtWei);
+                log(`Транзакция отправлена: ${tx.hash}`);
+
+                const receipt = await tx.wait();
+                log(`✅ Успех! Gas Used: ${receipt.gasUsed.toString()}`);
+            } catch (e) {
+                log("Ошибка TransferFrom: " + e.message);
+                log("Подсказка: Сделали ли вы Approve на сумму перевода?");
+            }
+        }
+
+    </script>
+</body>
+</html>
