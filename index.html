@@ -2,171 +2,263 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Web3 Gas Calculator</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <title>ERC-20 Dashboard</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
-        input { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
-        button { padding: 10px 20px; margin: 5px 5px 5px 0; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;}
-        button:hover { background: #0056b3; }
-        .log-box { background: #f4f4f4; padding: 10px; border: 1px solid #ddd; margin-top: 20px; min-height: 100px; white-space: pre-wrap; }
-        h3 { border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; padding: 20px; }
+        h1 { text-align: center; color: #333; }
+        
+        /* Стили для подключения */
+        .header-panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .status { font-weight: bold; color: #555; }
+        .btn-connect { background: #e67e22; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        .btn-connect:hover { background: #d35400; }
+
+        /* Сетка для 4 фреймов */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Две колонки */
+            gap: 20px;
+        }
+
+        /* Стиль карточки (Фрейма) */
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-top: 5px solid #ccc;
+        }
+
+        /* Цвета для разных типов операций */
+        .card-transfer { border-top-color: #3498db; } /* Синий */
+        .card-approve { border-top-color: #9b59b6; }  /* Фиолетовый */
+        .card-allowance { border-top-color: #f1c40f; } /* Желтый */
+        .card-transferFrom { border-top-color: #e74c3c; } /* Красный */
+
+        h3 { margin-top: 0; }
+        input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        label { font-size: 12px; color: #777; font-weight: bold; }
+        
+        button { width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; margin-top: 10px; }
+        .btn-blue { background: #3498db; }
+        .btn-purple { background: #9b59b6; }
+        .btn-yellow { background: #f1c40f; color: #333; }
+        .btn-red { background: #e74c3c; }
+        button:hover { opacity: 0.8; }
+
+        .result-box {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px dashed #ccc;
+            font-size: 13px;
+            color: #333;
+            min-height: 40px;
+            word-wrap: break-word;
+        }
+        .gas-tag { color: #e74c3c; font-weight: bold; display: block; margin-top: 5px; }
+
     </style>
 </head>
 <body>
 
-    <h2>ERC-20 Взаимодействие & Расчет Газа</h2>
-    
-    <button id="connectBtn" style="background: orange;">🔌 Подключить MetaMask</button>
-    <p>Мой аккаунт: <span id="myAccount">Не подключено</span></p>
+    <h1>Панель управления ERC-20 Токеном</h1>
 
-    <hr>
-
-    <label>Адрес получателя / Спендера (Address):</label>
-    <input type="text" id="addressInput" placeholder="0x..." />
-
-    <label>Сумма (Amount):</label>
-    <input type="number" id="amountInput" placeholder="10" />
-
-    <hr>
-
-    <h3>Функции:</h3>
-    <div>
-        <button onclick="doApprove()">3) Approve</button>
-        <button onclick="doTransfer()">4) Transfer</button>
-    </div>
-    <div style="margin-top: 10px;">
-        <button onclick="doAllowance()">2) Allowance (View)</button>
-        <button onclick="doTransferFrom()">1) Transfer From</button>
+    <div class="header-panel">
+        <div>
+            <div class="status">Статус: <span id="connectionStatus">🔴 Не подключено</span></div>
+            <div style="font-size: 12px; color: #888;" id="myAddress">Адрес: ...</div>
+        </div>
+        <button class="btn-connect" id="connectBtn">🔌 Подключить MetaMask</button>
     </div>
 
-    <h3>Логи и Газ:</h3>
-    <div id="logs" class="log-box">Ожидание действий...</div>
+    <div class="grid-container">
 
-    <script>
-        let provider, signer, contract;
-        
-        // !!! ВСТАВЬТЕ СЮДА АДРЕС ВАШЕГО КОНТРАКТА ИЗ REMIX !!!
+        <div class="card card-transfer">
+            <h3>1. Transfer (Перевод)</h3>
+            <p style="font-size:12px; color:#666;">Отправить токены со своего счета другу.</p>
+            
+            <label>Кому (Address To):</label>
+            <input type="text" id="tx_to" placeholder="0x..." />
+            
+            <label>Сумма:</label>
+            <input type="number" id="tx_amount" placeholder="10" />
+
+            <button class="btn-blue" onclick="doTransfer()">💸 Отправить</button>
+            <div class="result-box" id="log_transfer">Ожидание...</div>
+        </div>
+
+        <div class="card card-approve">
+            <h3>2. Approve (Разрешить)</h3>
+            <p style="font-size:12px; color:#666;">Разрешить другому адресу (Spender) тратить ваши токены.</p>
+
+            <label>Кому разрешаем (Spender Address):</label>
+            <input type="text" id="app_spender" placeholder="0x..." />
+            
+            <label>Сумма разрешения:</label>
+            <input type="number" id="app_amount" placeholder="100" />
+
+            <button class="btn-purple" onclick="doApprove()">✍️ Подписать Approve</button>
+            <div class="result-box" id="log_approve">Ожидание...</div>
+        </div>
+
+        <div class="card card-allowance">
+            <h3>3. Allowance (Проверка)</h3>
+            <p style="font-size:12px; color:#666;">Узнать, сколько Spender может снять у Owner.</p>
+
+            <label>Чьи деньги (Owner Address):</label>
+            <input type="text" id="all_owner" placeholder="Адрес владельца" />
+            
+            <label>Кто тратит (Spender Address):</label>
+            <input type="text" id="all_spender" placeholder="Адрес того, кому разрешили" />
+
+            <button class="btn-yellow" onclick="doAllowance()">👀 Проверить лимит</button>
+            <div class="result-box" id="log_allowance">Нажмите, чтобы проверить</div>
+        </div>
+
+        <div class="card card-transferFrom">
+            <h3>4. Transfer From (Списание)</h3>
+            <p style="font-size:12px; color:#666;">Забрать чужие деньги (если есть Approve).</p>
+
+            <label>У кого забрать (From Owner):</label>
+            <input type="text" id="tf_from" placeholder="0x... (Владелец)" />
+
+            <label>Кому отправить (To Receiver):</label>
+            <input type="text" id="tf_to" placeholder="0x... (Получатель)" />
+            
+            <label>Сумма:</label>
+            <input type="number" id="tf_amount" placeholder="5" />
+
+            <button class="btn-red" onclick="doTransferFrom()">🔄 Забрать и перевести</button>
+            <div class="result-box" id="log_transferFrom">Ожидание...</div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
+
+        // !!! ВСТАВЬТЕ СЮДА АДРЕС ВАШЕГО КОНТРАКТА !!!
         const CONTRACT_ADDRESS = "0x73511669fd4dE447feD18BB79bAFeAC93aB7F31f"; 
 
-        // Минимальный ABI для стандарта ERC-20
         const ABI = [
             "function transfer(address to, uint amount) returns (bool)",
             "function approve(address spender, uint amount) returns (bool)",
             "function transferFrom(address from, address to, uint amount) returns (bool)",
-            "function allowance(address owner, address spender) view returns (uint)"
+            "function allowance(address owner, address spender) view returns (uint)",
+            "function decimals() view returns (uint8)"
         ];
 
-        function log(msg) {
-            const logBox = document.getElementById("logs");
-            logBox.innerHTML = `> ${msg}\n` + logBox.innerHTML;
-        }
+        let provider, signer, contract;
 
-        // Подключение к MetaMask
-        document.getElementById('connectBtn').addEventListener('click', async () => {
-            if (window.ethereum) {
-                try {
-                    provider = new ethers.BrowserProvider(window.ethereum);
-                    signer = await provider.getSigner();
-                    const address = await signer.getAddress();
-                    
-                    document.getElementById("myAccount").innerText = address;
-                    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-                    
-                    log("MetaMask подключен!");
-                } catch (error) {
-                    log("Ошибка подключения: " + error.message);
-                }
-            } else {
-                alert("Установите MetaMask!");
-            }
-        });
-
-        // Вспомогательная функция для получения значений
-        function getInputs() {
-            const addr = document.getElementById("addressInput").value;
-            const amt = document.getElementById("amountInput").value;
-            if (!ethers.isAddress(addr)) { alert("Неверный адрес!"); return null; }
-            // Конвертируем число в Wei (18 нулей)
-            const amtWei = ethers.parseUnits(amt || "0", 18); 
-            return { addr, amtWei };
-        }
-
-        // --- 4. TRANSFER ---
-        async function doTransfer() {
-            const data = getInputs();
-            if (!data) return;
-
+        // --- ПОДКЛЮЧЕНИЕ ---
+        window.connectWallet = async function() {
+            if (!window.ethereum) return alert("Установите MetaMask!");
             try {
-                log("Отправка Transfer...");
-                const tx = await contract.transfer(data.addr, data.amtWei);
-                log(`Транзакция отправлена: ${tx.hash}`);
+                provider = new ethers.BrowserProvider(window.ethereum);
+                signer = await provider.getSigner();
+                const address = await signer.getAddress();
                 
-                const receipt = await tx.wait(); // Ждем подтверждения
-                log(`✅ Успех! Gas Used: ${receipt.gasUsed.toString()}`);
-            } catch (e) {
-                log("Ошибка Transfer: " + e.message);
+                contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+                document.getElementById("connectionStatus").innerText = "✅ Подключено";
+                document.getElementById("connectionStatus").style.color = "green";
+                document.getElementById("myAddress").innerText = "Мой адрес: " + address;
+                
+                // Автозаполнение полей для удобства теста
+                document.getElementById("all_owner").value = address; // Для проверки своих лимитов
+                document.getElementById("tf_to").value = address;     // Чтобы перевести себе
+                
+            } catch (err) {
+                alert("Ошибка: " + err.message);
             }
-        }
+        };
+        // Привязка кнопки
+        document.getElementById('connectBtn').addEventListener('click', window.connectWallet);
 
-        // --- 3. APPROVE ---
-        async function doApprove() {
-            const data = getInputs();
-            if (!data) return;
 
+        // --- 1. TRANSFER ---
+        window.doTransfer = async function() {
+            if(!contract) return alert("Подключите кошелек!");
+            const output = document.getElementById("log_transfer");
+            
             try {
-                log("Отправка Approve...");
-                const tx = await contract.approve(data.addr, data.amtWei);
-                log(`Транзакция отправлена: ${tx.hash}`);
-
+                const to = document.getElementById("tx_to").value;
+                const amount = ethers.parseUnits(document.getElementById("tx_amount").value, 18);
+                
+                output.innerText = "⏳ Отправка транзакции...";
+                const tx = await contract.transfer(to, amount);
+                
+                output.innerText = "⏳ Ждем майнеров... Hash: " + tx.hash.substring(0,10)+"...";
                 const receipt = await tx.wait();
-                log(`✅ Успех! Gas Used: ${receipt.gasUsed.toString()}`);
-            } catch (e) {
-                log("Ошибка Approve: " + e.message);
-            }
+                
+                output.innerHTML = `✅ Успех!<br><span class="gas-tag">⛽ Gas Used: ${receipt.gasUsed}</span>`;
+            } catch (e) { output.innerText = "❌ Ошибка: " + e.message; }
         }
 
-        // --- 2. ALLOWANCE (Это view функция, газа не тратит, но покажем результат) ---
-        async function doAllowance() {
-            const spender = document.getElementById("addressInput").value;
-            if (!ethers.isAddress(spender)) return alert("Введите адрес Spender");
+
+        // --- 2. APPROVE ---
+        window.doApprove = async function() {
+            if(!contract) return alert("Подключите кошелек!");
+            const output = document.getElementById("log_approve");
 
             try {
-                const owner = await signer.getAddress();
+                const spender = document.getElementById("app_spender").value;
+                const amount = ethers.parseUnits(document.getElementById("app_amount").value, 18);
+
+                output.innerText = "⏳ Подписание Approve...";
+                const tx = await contract.approve(spender, amount);
+
+                output.innerText = "⏳ Ждем записи в блокчейн...";
+                const receipt = await tx.wait();
+
+                output.innerHTML = `✅ Разрешение выдано!<br><span class="gas-tag">⛽ Gas Used: ${receipt.gasUsed}</span>`;
+            } catch (e) { output.innerText = "❌ Ошибка: " + e.message; }
+        }
+
+
+        // --- 3. ALLOWANCE (VIEW) ---
+        window.doAllowance = async function() {
+            if(!contract) return alert("Подключите кошелек!");
+            const output = document.getElementById("log_allowance");
+
+            try {
+                const owner = document.getElementById("all_owner").value;
+                const spender = document.getElementById("all_spender").value;
+
+                output.innerText = "🔄 Чтение данных...";
+                // Это View функция, она не требует газа и подписи
                 const result = await contract.allowance(owner, spender);
                 const formatted = ethers.formatUnits(result, 18);
-                log(`ℹ️ Allowance: ${formatted} токенов (View функция - 0 газа)`);
-            } catch (e) {
-                log("Ошибка Allowance: " + e.message);
-            }
+
+                output.innerHTML = `ℹ️ Разрешено тратить: <b>${formatted}</b> токенов.<br><span class="gas-tag">⛽ Gas: 0 (Бесплатно)</span>`;
+            } catch (e) { output.innerText = "❌ Ошибка: " + e.message; }
         }
 
-        // --- 1. TRANSFER FROM ---
-        async function doTransferFrom() {
-            // Для теста transferFrom обычно нужно 3 аргумента: from, to, amount.
-            // В простой форме мы возьмем "from" как нас, а "to" как введенный адрес.
-            // Примечание: Чтобы это сработало, вы должны были сделать Approve самому себе или другому контракту.
-            
-            const data = getInputs();
-            if (!data) return;
+
+        // --- 4. TRANSFER FROM ---
+        window.doTransferFrom = async function() {
+            if(!contract) return alert("Подключите кошелек!");
+            const output = document.getElementById("log_transferFrom");
 
             try {
-                const owner = await signer.getAddress(); // От кого списываем (от себя)
-                log("Отправка TransferFrom...");
-                
-                // В реальном сценарии transferFrom вызывает третья сторона. 
-                // Если мы вызываем его сами на себя, это сработает, если есть allowance.
-                const tx = await contract.transferFrom(owner, data.addr, data.amtWei);
-                log(`Транзакция отправлена: ${tx.hash}`);
+                const from = document.getElementById("tf_from").value;
+                const to = document.getElementById("tf_to").value;
+                const amount = ethers.parseUnits(document.getElementById("tf_amount").value, 18);
 
+                output.innerText = "⏳ Списание средств...";
+                // Метамаск покажет предупреждение, если нет Allowance
+                const tx = await contract.transferFrom(from, to, amount);
+
+                output.innerText = "⏳ Ждем подтверждения...";
                 const receipt = await tx.wait();
-                log(`✅ Успех! Gas Used: ${receipt.gasUsed.toString()}`);
-            } catch (e) {
-                log("Ошибка TransferFrom: " + e.message);
-                log("Подсказка: Сделали ли вы Approve на сумму перевода?");
+
+                output.innerHTML = `✅ Средства переведены!<br><span class="gas-tag">⛽ Gas Used: ${receipt.gasUsed}</span>`;
+            } catch (e) { 
+                output.innerText = "❌ Ошибка! Проверьте, есть ли Allowance?";
+                console.error(e);
             }
         }
-
     </script>
 </body>
 </html>
